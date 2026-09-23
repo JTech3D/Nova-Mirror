@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Nova-Mirror Konfigurator</title>
+  <style>
+    body {
+      margin: 0;
+      background: #1c1c1e;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      font-family: -apple-system, sans-serif;
+      color: white;
+    }
+
+    header {
+      padding: 16px 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 {
+      font-size: 1.1rem;
+      margin: 0;
+      font-weight: 600;
+    }
+
+    #save-button {
+      padding: 8px 16px;
+      background: #0a84ff;
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    #save-button:hover {
+      background: #3396ff;
+    }
+
+    #save-status {
+      font-size: 0.8rem;
+      opacity: 0.6;
+      margin-left: 12px;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    #sidebar, #settings-panel {
+      width: 200px;
+      padding: 16px;
+      box-sizing: border-box;
+      flex-shrink: 0;
+      overflow-y: auto;
+    }
+
+    #sidebar {
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    #settings-panel {
+      border-left: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    #sidebar h2, #settings-panel h2 {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      opacity: 0.5;
+      margin: 0 0 12px 0;
+    }
+
+    .catalog-item {
+      display: block;
+      width: 100%;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border: none;
+      border-radius: 10px;
+      color: white;
+      font-size: 0.9rem;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .catalog-item:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .no-selection {
+      opacity: 0.4;
+      font-size: 0.85rem;
+    }
+
+    .field {
+      margin-bottom: 12px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 0.8rem;
+      opacity: 0.6;
+      margin-bottom: 4px;
+    }
+
+    .field input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px;
+      border-radius: 8px;
+      border: none;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      font-size: 0.9rem;
+    }
+
+    #grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+      gap: 16px;
+      padding: 24px;
+      box-sizing: border-box;
+      position: relative;
+    }
+
+    .cell {
+      border: 1px dashed rgba(255, 255, 255, 0.15);
+      box-sizing: border-box;
+      border-radius: 4px;
+    }
+
+    .widget {
+      min-width: 0;
+      min-height: 0;
+      z-index: 1;
+    }
+
+    .widget.dragging {
+      z-index: 10;
+    }
+
+    .widget-card {
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(20px);
+      border-radius: 20px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      font-size: 0.9rem;
+      cursor: grab;
+      user-select: none;
+      border: 2px solid transparent;
+    }
+
+    .widget.selected .widget-card {
+      border-color: rgba(255, 255, 255, 0.6);
+    }
+
+    .widget.dragging .widget-card {
+      cursor: grabbing;
+      opacity: 0.85;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+    }
+
+    .secondary-button {
+      padding: 8px 16px;
+      margin-right: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    .secondary-button:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  </style>
+  <script src="widgets/registry.js"></script>
+  <script src="widgets/clock.js"></script>
+  <script src="widgets/weather.js"></script>
+  <script src="widgets/calendar.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Nova-Mirror Konfigurator</h1>
+    <div>
+      <span id="save-status"></span>
+      <button id="export-button" class="secondary-button">Export</button>
+      <button id="import-button" class="secondary-button">Import</button>
+      <input type="file" id="import-input" accept="application/json" style="display: none">
+      <button id="save-button">Speichern</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="sidebar">
+      <h2>Widgets hinzufügen</h2>
+      <div id="catalog"></div>
+    </div>
+    <div id="grid"></div>
+    <div id="settings-panel">
+      <h2>Einstellungen</h2>
+      <div id="settings-content"></div>
+    </div>
+  </main>
+
+  <script>
+    const COLS = 12;
+    const ROWS = 8;
+    const grid = document.getElementById("grid");
+    const catalog = document.getElementById("catalog");
+    const settingsContent = document.getElementById("settings-content");
+    const exportButton = document.getElementById("export-button");
+    const importButton = document.getElementById("import-button");
+    const importInput = document.getElementById("import-input");
+    let widgets = [];
+    let selectedWidget = null;
+
+    function exportConfig() {
+      const blob = new Blob([JSON.stringify({ widgets: widgets }, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "config.json";
+      link.click();
+
+      URL.revokeObjectURL(url);
+    }
+
+    function importConfig(file) {
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(reader.result);
+          widgets = parsed.widget || [];
+          selectedWidget = null;
+          renderWidgets();
+          renderSettingsPanel();
+          saveStatus.textContent = "Import - noch nicht gespeichert";
+        } catch (error) {
+          saveStatus.textContent = "Ungültige Datei";
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    exportButton.addEventListener("click", exportConfig);
+    importButton.addEventListener("click", () => importInput.click());
+    importInput.addEventListener("change", () => {
+      if (importInput.files.length > 0) {
+        importConfig(importInput.files[0]);
+      }
+    });
+    
+    function renderGridCells() {
+      for (let row = 1; row <= ROWS; row++) {
+        for (let col = 1; col <= COLS; col++) {
+          const cell = document.createElement("div");
+          cell.className = "cell";
+          cell.style.gridColumn = `${col} / ${col + 1}`;
+          cell.style.gridRow = `${row} / ${row + 1}`;
+          grid.appendChild(cell);
+        }
+      }
+    }
+
+    function applyPosition(wrapper, widget) {
+      wrapper.style.gridColumn = `${widget.x} / ${widget.x + widget.w}`;
+      wrapper.style.gridRow = `${widget.y} / ${widget.y + widget.h}`;
+    }
+
+    function getPointerPosition(event) {
+      if (event.touches && event.touches.length > 0) {
+        return { x: event.touches[0].clientX, y: event.touches[0].clientY };
+      }
+      return { x: event.clientX, y: event.clientY };
+    }
+
+    function getCellSize() {
+      const gridRect = grid.getBoundingClientRect();
+      return { width: gridRect.width / COLS, height: gridRect.height / ROWS };
+    }
+
+    function selectWidget(widget) {
+      selectedWidget = widget;
+      renderWidgets();
+      renderSettingsPanel();
+    }
+
+    function renderSettingsPanel() {
+      settingsContent.innerHTML = "";
+
+      if (!selectedWidget) {
+        const hint = document.createElement("div");
+        hint.className = "no-selection";
+        hint.textContent = "Klicke ein Widget an, um es zu bearbeiten.";
+        settingsContent.appendChild(hint);
+        return;
+      }
+
+      const meta = NOVA_WIDGETS[selectedWidget.type];
+
+      if (meta.fields.length === 0) {
+        const hint = document.createElement("div");
+        hint.className = "no-selection";
+        hint.textContent = meta.label + " hat keine Einstellungen.";
+        settingsContent.appendChild(hint);
+        return;
+      }
+
+      meta.fields.forEach(field => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "field";
+
+        const label = document.createElement("label");
+        label.textContent = field.label;
+
+        const input = document.createElement("input");
+        input.type = field.type;
+        input.value = selectedWidget.settings[field.key];
+
+        input.addEventListener("input", () => {
+          selectedWidget.settings[field.key] =
+            field.type === "number" ? parseFloat(input.value) || 0 : input.value;
+        });
+
+        wrapper.appendChild(label);
+        wrapper.appendChild(input);
+        settingsContent.appendChild(wrapper);
+      });
+    }
+
+    function makeDraggable(wrapper, widget) {
+      function onDragStart(event) {
+        event.preventDefault();
+
+        const cell = getCellSize();
+        const start = getPointerPosition(event);
+        const startX = widget.x;
+        const startY = widget.y;
+        let moved = false;
+
+        function onDragMove(e) {
+          const pos = getPointerPosition(e);
+          const deltaCol = Math.round((pos.x - start.x) / cell.width);
+          const deltaRow = Math.round((pos.y - start.y) / cell.height);
+
+          if (Math.abs(pos.x - start.x) > 5 || Math.abs(pos.y - start.y) > 5) {
+            moved = true;
+            wrapper.classList.add("dragging");
+          }
+
+          const maxX = COLS - widget.w + 1;
+          const maxY = ROWS - widget.h + 1;
+
+          widget.x = Math.max(1, Math.min(startX + deltaCol, maxX));
+          widget.y = Math.max(1, Math.min(startY + deltaRow, maxY));
+
+          applyPosition(wrapper, widget);
+        }
+
+        function onDragEnd() {
+          wrapper.classList.remove("dragging");
+          document.removeEventListener("mousemove", onDragMove);
+          document.removeEventListener("mouseup", onDragEnd);
+          document.removeEventListener("touchmove", onDragMove);
+          document.removeEventListener("touchend", onDragEnd);
+
+          if (!moved) {
+            selectWidget(widget);
+          }
+        }
+
+        document.addEventListener("mousemove", onDragMove);
+        document.addEventListener("mouseup", onDragEnd);
+        document.addEventListener("touchmove", onDragMove, { passive: false });
+        document.addEventListener("touchend", onDragEnd);
+      }
+
+      wrapper.addEventListener("mousedown", onDragStart);
+      wrapper.addEventListener("touchstart", onDragStart, { passive: false });
+    }
+
+    function renderWidgets() {
+      grid.querySelectorAll(".widget").forEach(el => el.remove());
+
+      widgets.forEach(widget => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "widget" + (widget === selectedWidget ? " selected" : "");
+        applyPosition(wrapper, widget);
+
+        const card = document.createElement("div");
+        card.className = "widget-card";
+        card.textContent = NOVA_WIDGETS[widget.type]?.label || widget.type;
+
+        wrapper.appendChild(card);
+        grid.appendChild(wrapper);
+
+        makeDraggable(wrapper, widget);
+      });
+    }
+
+    function addWidget(type, size) {
+      const meta = NOVA_WIDGETS[type];
+      const widget = {
+        type: type,
+        x: 1,
+        y: 1,
+        w: size.w,
+        h: size.h,
+        settings: { ...meta.defaultSettings }
+      };
+      widgets.push(widget);
+      selectWidget(widget);
+    }
+
+    function renderCatalog() {
+      Object.entries(NOVA_WIDGETS).forEach(([type, meta]) => {
+        meta.sizes.forEach(size => {
+          const button = document.createElement("button");
+          button.className = "catalog-item";
+          button.textContent = `+ ${meta.label} (${size.name})`;
+          button.addEventListener("click", () => addWidget(type, size));
+          catalog.appendChild(button);
+        });
+      });
+    }
+
+    const saveButton = document.getElementById("save-button");
+    const saveStatus = document.getElementById("save-status");
+
+    function saveConfig() {
+      saveStatus.textContent = "Speichere...";
+
+      fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ widgets: widgets })
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error("Server hat abgelehnt");
+          }
+          saveStatus.textContent = "Gespeichert ✓";
+          setTimeout(() => { saveStatus.textContent = ""; }, 2000);
+        })
+        .catch(() => {
+          saveStatus.textContent = "Fehler beim Speichern";
+        });
+    }
+
+    saveButton.addEventListener("click", saveConfig);
+
+    renderGridCells();
+    renderCatalog();
+    renderSettingsPanel();
+
+    fetch("/api/config")
+      .then(response => response.json())
+      .then(config => {
+        widgets = config.widgets || [];
+        renderWidgets();
+      });
+  </script>
+</body>
+</html>

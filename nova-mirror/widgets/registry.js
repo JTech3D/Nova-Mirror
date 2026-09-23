@@ -1,0 +1,1 @@
+const NOVA_WIDGETS = {};

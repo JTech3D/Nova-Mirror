@@ -108,8 +108,8 @@ Add felt pads at regular intervals between the bracket and the glass. When secur
 - A sharp utility knife
 - Wood glue
 - Heatgun or Hairdryer
-- Squeegee with a felt edge
-- 3D-printed Parts
+- A squeegee with a felt edge
+- A 3D-printer
 - Screws and Anchors
 - Tools to decase the monitor
 - 16mm wood screws
