@@ -1,4 +1,4 @@
-# Nova-Mirror
+<img src="readme_assets/banner.png" alt="Nova-Mirror" width="100%"/>
 
 ## Contents of this README
 - Introduction
@@ -116,11 +116,11 @@ Add felt pads at regular intervals between the bracket and the glass. When secur
 - Cordless Screwdriver (recommended)
 
 ## Build Guide
-Sorry, this part doesn't exist yet 😖
+Sorry, this part doesn't exist yet 😖. I still need funding to actually build it.
 
 ## Possible Extensions
 - Led Backlight
 - Speaker for AI Answers via Text to Speech
 
 ## AI-Usage
-I used AI for brainstorming on needed Parts, like how much RAM the Pi needs and which folis to use. Because I had some issues setting up Hackatime I used AI to help me.
+I used AI for brainstorming on needed Parts, like how much RAM the Pi needs and which folis to use. I used AI for debugging, but only when I was not able to find a website, forum or post deticated to my problem.

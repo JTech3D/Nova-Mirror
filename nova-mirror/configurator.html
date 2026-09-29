@@ -4,13 +4,18 @@
   <meta charset="UTF-8">
   <title>Nova-Mirror Konfigurator</title>
   <style>
+    :root {
+      --gap: 12px;
+      --margin: 24px;
+    }
+
     body {
       margin: 0;
       background: #1c1c1e;
       height: 100vh;
       display: flex;
       flex-direction: column;
-      font-family: -apple-system, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       color: white;
     }
 
@@ -46,6 +51,22 @@
       font-size: 0.8rem;
       opacity: 0.6;
       margin-left: 12px;
+    }
+
+    .secondary-button {
+      padding: 8px 16px;
+      margin-right: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .secondary-button:hover {
+      background: rgba(255, 255, 255, 0.2);
     }
 
     main {
@@ -89,6 +110,7 @@
       font-size: 0.9rem;
       text-align: left;
       cursor: pointer;
+      transition: background 0.15s ease;
     }
 
     .catalog-item:hover {
@@ -122,15 +144,62 @@
       font-size: 0.9rem;
     }
 
-    #grid {
+    .location-results {
+      margin-top: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .location-option {
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 0.8rem;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .location-option:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .delete-button {
+      padding: 8px 16px;
+      background: rgba(255, 69, 58, 0.15);
+      border: none;
+      border-radius: 8px;
+      color: #ff453a;
+      font-size: 0.9rem;
+      cursor: pointer;
+      margin-top: 16px;
+      width: 100%;
+    }
+
+    .delete-button:hover {
+      background: rgba(255, 69, 58, 0.3);
+    }
+
+    #grid-area {
       flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      container-type: size;
+    }
+
+    #grid {
+      --cell: min(
+        calc((100cqw - 2 * var(--margin) - (var(--cols) - 1) * var(--gap)) / var(--cols)),
+        calc((100cqh - 2 * var(--margin) - (var(--rows) - 1) * var(--gap)) / var(--rows))
+      );
       display: grid;
-      grid-template-columns: repeat(12, 1fr);
-      grid-template-rows: repeat(8, 1fr);
-      gap: 16px;
-      padding: 24px;
-      box-sizing: border-box;
-      position: relative;
+      grid-template-columns: repeat(var(--cols), var(--cell));
+      grid-template-rows: repeat(var(--rows), var(--cell));
+      gap: var(--gap);
     }
 
     .cell {
@@ -159,11 +228,13 @@
       background: rgba(255, 255, 255, 0.08);
       backdrop-filter: blur(20px);
       border-radius: 20px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15);
       font-size: 0.9rem;
       cursor: grab;
       user-select: none;
       border: 2px solid transparent;
+      transition: transform 0.15s ease;
+      animation: fadeIn 0.3s ease;
     }
 
     .widget.selected .widget-card {
@@ -176,19 +247,13 @@
       box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
     }
 
-    .secondary-button {
-      padding: 8px 16px;
-      margin-right: 8px;
-      background: rgba(255, 255, 255, 0.1);
-      border: none;
-      border-radius: 8px;
-      color: white;
-      font-size: 0.9rem;
-      cursor: pointer;
+    .widget:not(.dragging) .widget-card:hover {
+      transform: scale(1.02);
     }
 
-    .secondary-button:hover {
-      background: rgba(255, 255, 255, 0.2);
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.97); }
+      to { opacity: 1; transform: scale(1); }
     }
   </style>
   <script src="widgets/registry.js"></script>
@@ -213,7 +278,9 @@
       <h2>Widgets hinzufügen</h2>
       <div id="catalog"></div>
     </div>
-    <div id="grid"></div>
+    <div id="grid-area">
+      <div id="grid"></div>
+    </div>
     <div id="settings-panel">
       <h2>Einstellungen</h2>
       <div id="settings-content"></div>
@@ -221,55 +288,25 @@
   </main>
 
   <script>
-    const COLS = 12;
-    const ROWS = 8;
+    const COLS = 10;
+    const ROWS = 5;
+    document.documentElement.style.setProperty("--cols", COLS);
+    document.documentElement.style.setProperty("--rows", ROWS);
+
+    function clampWidget(widget) {
+      widget.w = Math.min(Math.max(1, widget.w), COLS);
+      widget.h = Math.min(Math.max(1, widget.h), ROWS);
+      widget.x = Math.min(Math.max(1, widget.x), COLS - widget.w + 1);
+      widget.y = Math.min(Math.max(1, widget.y), ROWS - widget.h + 1);
+    }
+
+    const DEBUG_GRID = true;
     const grid = document.getElementById("grid");
     const catalog = document.getElementById("catalog");
     const settingsContent = document.getElementById("settings-content");
-    const exportButton = document.getElementById("export-button");
-    const importButton = document.getElementById("import-button");
-    const importInput = document.getElementById("import-input");
     let widgets = [];
     let selectedWidget = null;
 
-    function exportConfig() {
-      const blob = new Blob([JSON.stringify({ widgets: widgets }, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "config.json";
-      link.click();
-
-      URL.revokeObjectURL(url);
-    }
-
-    function importConfig(file) {
-      const reader = new FileReader();
-
-      reader.onload = () => {
-        try {
-          const parsed = JSON.parse(reader.result);
-          widgets = parsed.widget || [];
-          selectedWidget = null;
-          renderWidgets();
-          renderSettingsPanel();
-          saveStatus.textContent = "Import - noch nicht gespeichert";
-        } catch (error) {
-          saveStatus.textContent = "Ungültige Datei";
-        }
-      };
-      reader.readAsText(file);
-    }
-
-    exportButton.addEventListener("click", exportConfig);
-    importButton.addEventListener("click", () => importInput.click());
-    importInput.addEventListener("change", () => {
-      if (importInput.files.length > 0) {
-        importConfig(importInput.files[0]);
-      }
-    });
-    
     function renderGridCells() {
       for (let row = 1; row <= ROWS; row++) {
         for (let col = 1; col <= COLS; col++) {
@@ -295,14 +332,115 @@
     }
 
     function getCellSize() {
-      const gridRect = grid.getBoundingClientRect();
-      return { width: gridRect.width / COLS, height: gridRect.height / ROWS };
+      const rect = grid.getBoundingClientRect();
+      const gap = parseFloat(getComputedStyle(grid).columnGap) || 0;
+      return { width: (rect.width + gap) / COLS, height: (rect.height + gap) / ROWS };
     }
 
     function selectWidget(widget) {
       selectedWidget = widget;
       renderWidgets();
       renderSettingsPanel();
+    }
+
+    function renderLocationField(container, widget) {
+      if (!widget.settings) {
+        widget.settings = { name: "", latitude: 0, longitude: 0 };
+      }
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "field";
+
+      const label = document.createElement("label");
+      label.textContent = "Ort";
+
+      const row = document.createElement("div");
+      row.style.display = "flex";
+      row.style.gap = "6px";
+
+      const input = document.createElement("input");
+      input.type = "text";
+      input.placeholder = "z.B. Bad Arolsen";
+      input.value = widget.settings.name || "";
+      input.style.flex = "1";
+      input.style.minWidth = "0";
+
+      const searchButton = document.createElement("button");
+      searchButton.type = "button";
+      searchButton.className = "secondary-button";
+      searchButton.textContent = "Suchen";
+      searchButton.style.flexShrink = "0";
+
+      const results = document.createElement("div");
+      results.className = "location-results";
+
+      const current = document.createElement("div");
+      current.style.fontSize = "0.75rem";
+      current.style.opacity = "0.5";
+      current.style.marginTop = "4px";
+
+      function updateCurrentLabel() {
+        current.textContent = widget.settings.name
+          ? `Aktuell gespeichert: ${widget.settings.name} (${widget.settings.latitude}, ${widget.settings.longitude})`
+          : "Noch kein Ort ausgewählt";
+      }
+
+      updateCurrentLabel();
+
+      function search() {
+        const query = input.value.trim();
+        if (!query) return;
+
+        results.textContent = "Suche...";
+
+        fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=de`)
+          .then(response => response.json())
+          .then(data => {
+            results.innerHTML = "";
+
+            if (!data.results || data.results.length === 0) {
+              results.textContent = "Keine Treffer gefunden.";
+              return;
+            }
+
+            data.results.forEach(place => {
+              const option = document.createElement("button");
+              option.type = "button";
+              option.className = "location-option";
+              option.textContent = `${place.name}${place.admin1 ? ", " + place.admin1 : ""}, ${place.country}`;
+
+              option.addEventListener("click", () => {
+                widget.settings.name = place.name;
+                widget.settings.latitude = place.latitude;
+                widget.settings.longitude = place.longitude;
+                input.value = place.name;
+                results.innerHTML = "";
+                updateCurrentLabel();
+              });
+
+              results.appendChild(option);
+            });
+          })
+          .catch(() => {
+            results.textContent = "Suche fehlgeschlagen.";
+          });
+      }
+
+      searchButton.addEventListener("click", search);
+      input.addEventListener("keydown", event => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          search();
+        }
+      });
+
+      row.appendChild(input);
+      row.appendChild(searchButton);
+      wrapper.appendChild(label);
+      wrapper.appendChild(row);
+      wrapper.appendChild(results);
+      wrapper.appendChild(current);
+      container.appendChild(wrapper);
     }
 
     function renderSettingsPanel() {
@@ -323,10 +461,14 @@
         hint.className = "no-selection";
         hint.textContent = meta.label + " hat keine Einstellungen.";
         settingsContent.appendChild(hint);
-        return;
       }
 
       meta.fields.forEach(field => {
+        if (field.type === "location") {
+          renderLocationField(settingsContent, selectedWidget);
+          return;
+        }
+
         const wrapper = document.createElement("div");
         wrapper.className = "field";
 
@@ -346,6 +488,20 @@
         wrapper.appendChild(input);
         settingsContent.appendChild(wrapper);
       });
+
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.className = "delete-button";
+      deleteButton.textContent = "Widget löschen";
+
+      deleteButton.addEventListener("click", () => {
+        widgets = widgets.filter(w => w !== selectedWidget);
+        selectedWidget = null;
+        renderWidgets();
+        renderSettingsPanel();
+      });
+
+      settingsContent.appendChild(deleteButton);
     }
 
     function makeDraggable(wrapper, widget) {
@@ -469,7 +625,53 @@
 
     saveButton.addEventListener("click", saveConfig);
 
-    renderGridCells();
+    const exportButton = document.getElementById("export-button");
+    const importButton = document.getElementById("import-button");
+    const importInput = document.getElementById("import-input");
+
+    function exportConfig() {
+      const blob = new Blob([JSON.stringify({ widgets: widgets }, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "config.json";
+      link.click();
+
+      URL.revokeObjectURL(url);
+    }
+
+    function importConfig(file) {
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(reader.result);
+          widgets = parsed.widgets || [];
+          widgets.forEach(clampWidget);
+          selectedWidget = null;
+          renderWidgets();
+          renderSettingsPanel();
+          saveStatus.textContent = "Importiert – noch nicht gespeichert";
+        } catch (error) {
+          saveStatus.textContent = "Ungültige Datei";
+        }
+      };
+
+      reader.readAsText(file);
+    }
+
+    exportButton.addEventListener("click", exportConfig);
+    importButton.addEventListener("click", () => importInput.click());
+    importInput.addEventListener("change", () => {
+      if (importInput.files.length > 0) {
+        importConfig(importInput.files[0]);
+      }
+    });
+
+    if (DEBUG_GRID) {
+      renderGridCells();
+    }
     renderCatalog();
     renderSettingsPanel();
 
@@ -477,6 +679,7 @@
       .then(response => response.json())
       .then(config => {
         widgets = config.widgets || [];
+        widgets.forEach(clampWidget);
         renderWidgets();
       });
   </script>
